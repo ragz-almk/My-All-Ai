@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat AI UI - Firebase & Vercel Ready</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    body { margin: 0; overflow: hidden; background-color: #1f2937; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useRef, useEffect } = React;
+
+    // --- Konfigurasi Firebase ---
+    // PENTING: Ganti nilai di bawah ini dengan config dari Firebase Console kamu
+    const firebaseConfig = {
+      apiKey: "API_KEY_FIREBASE_KAMU",
+      authDomain: "PROJECT_ID_KAMU.firebaseapp.com",
+      projectId: "PROJECT_ID_KAMU",
+      storageBucket: "PROJECT_ID_KAMU.appspot.com",
+      messagingSenderId: "SENDER_ID_KAMU",
+      appId: "APP_ID_KAMU"
+    };
+
+    // Inisialisasi Firebase (Mencegah inisialisasi ganda)
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+    // --- Komponen Ikon ---
+    const IconMenu = ({ size = 24, className = "" }) => <svg width={size} height={size} className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>;
+    const IconPlus = ({ size = 24, className = "" }) => <svg width={size} height={size} className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg>;
+    const IconSend = ({ size = 24, className = "" }) => <svg width={size} height={size} className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
+    const IconMessageSquare = ({ size = 24, className = "" }) => <svg width={size} height={size} className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>;
+    const IconX = ({ size = 24, className = "" }) => <svg width={size} height={size} className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
+    const IconImage = ({ size = 24, className = "" }) => <svg width={size} height={size} className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>;
+    const IconFileText = ({ size = 24, className = "" }) => <svg width={size} height={size} className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>;
+    const IconBot = ({ size = 24, className = "" }) => <svg width={size} height={size} className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect width="18" height="14" x="3" y="7" rx="2"/><path d="M12 7V3"/><path d="M10 3h4"/><path d="M8 12h.01"/><path d="M16 12h.01"/><path d="M10 16h4"/></svg>;
+    const IconUser = ({ size = 24, className = "" }) => <svg width={size} height={size} className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+    const IconTrash2 = ({ size = 24, className = "" }) => <svg width={size} height={size} className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
+    const IconChevronDown = ({ size = 24, className = "" }) => <svg width={size} height={size} className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>;
+
+    // --- Data Konfigurasi AI Baru ---
+    const AI_MODELS = [
+      // Keluarga Google
+      { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', group: 'Google' },
+      { id: 'gemini-3.1-flash', name: 'Gemini 3.1 Flash', group: 'Google' },
+      { id: 'gemini-3.1-lite', name: 'Gemini 3.1 Lite', group: 'Google' },
+      { id: 'nano-banana-2', name: 'Nano Banana 2', group: 'Google' },
+      // Keluarga Groq
+      { id: 'llama-4', name: 'Llama 4', group: 'Groq' },
+      { id: 'whisper-stt', name: 'Whisper (STT)', group: 'Groq' },
+      // Keluarga OpenAI
+      { id: 'gpt-5.1', name: 'GPT 5.1', group: 'OpenAI' },
+      { id: 'gpt-5-nano', name: 'GPT 5 Nano', group: 'OpenAI' },
+      // Keluarga OpenRouter
+      { id: 'hunter-alpha', name: 'Hunter Alpha', group: 'OpenRouter' },
+      { id: 'qwen-3.5-9b', name: 'Qwen 3.5 - 9B', group: 'OpenRouter' }
+    ];
+
+    function App() {
+      // State UI
+      const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+      const [selectedModel, setSelectedModel] = useState(AI_MODELS[0].id);
+      const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+      
+      // State Data
+      const [user, setUser] = useState(null); // Menyimpan data user login
+      const [history, setHistory] = useState([]); // Riwayat dari Firestore
+      const [messages, setMessages] = useState([
+        { id: 1, role: 'ai', content: 'Halo! Saya asisten AI Anda. Silakan login untuk menyimpan riwayat.' }
+      ]);
+      const [inputValue, setInputValue] = useState('');
+      const [attachment, setAttachment] = useState(null);
+      
+      const messagesEndRef = useRef(null);
+      const fileInputRef = useRef(null);
+
+      // --- Efek Firebase Auth ---
+      useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+          setUser(currentUser);
+          if (currentUser) {
+            // Ambil riwayat chat pengguna dari Firestore
+            loadHistory(currentUser.uid);
+          } else {
+            setHistory([]); // Kosongkan riwayat jika logout
+          }
+        });
+        return () => unsubscribe();
+      }, []);
+
+      // Auto-scroll ke bawah saat ada pesan baru
+      useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, [messages]);
+
+      // --- Fungsi Firebase Login / Logout ---
+      const handleLogin = async () => {
+        try {
+          await auth.signInWithPopup(googleProvider);
+        } catch (error) {
+          console.error("Gagal login:", error);
+          alert("Gagal login: " + error.message);
+        }
+      };
+
+      const handleLogout = () => {
+        auth.signOut();
+        setMessages([{ id: 1, role: 'ai', content: 'Anda telah logout. Sampai jumpa!' }]);
+      };
+
+      // --- Fungsi Firestore ---
+      const loadHistory = (uid) => {
+        // Mendengarkan perubahan data di Firestore secara real-time
+        db.collection('users').doc(uid).collection('chats')
+          .orderBy('createdAt', 'desc')
+          .onSnapshot((snapshot) => {
+            const historyData = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            setHistory(historyData);
+          });
+      };
+
+      const saveMessageToFirestore = async (messageObj) => {
+        if (!user) return; // Jangan simpan jika belum login
+        try {
+          // Contoh struktur: Menyimpan setiap pesan dalam satu dokumen 'chat' utama
+          // Untuk produksi, kamu mungkin ingin membuat sistem "Session/Room ID"
+          await db.collection('users').doc(user.uid).collection('messages').add({
+            ...messageObj,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        } catch (error) {
+          console.error("Gagal menyimpan pesan:", error);
+        }
+      };
+
+      // --- Fungsi Kirim Pesan (Integrasi Vercel) ---
+      const handleSendMessage = async (e) => {
+        e.preventDefault();
+        if (!inputValue.trim() && !attachment) return;
+
+        // 1. Tambahkan pesan User ke UI
+        const newUserMsg = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: inputValue,
+          attachment: attachment ? attachment.name : null
+        };
+        setMessages(prev => [...prev, newUserMsg]);
+        saveMessageToFirestore(newUserMsg); // Simpan ke DB
+
+        const currentInput = inputValue; // Simpan teks untuk dikirim ke API
+        setInputValue('');
+        setAttachment(null);
+
+        // 2. Tembak API Vercel
+        try {
+          // Placeholder API Vercel kamu. Di Vercel nanti, kamu buat file /api/chat.js
+          /*
+          const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: selectedModel, // Model yang dipilih di UI (misal: 'gpt-5.1')
+              message: currentInput,
+              // history: messages // Bisa dikirim juga jika API butuh konteks
+            })
+          });
+          const data = await response.json();
+          */
+
+          // Karena ini belum terkoneksi ke Vercel betulan, kita simulasikan:
+          setTimeout(() => {
+            const aiResponse = {
+              id: (Date.now() + 1).toString(),
+              role: 'ai',
+              content: `(Simulasi Vercel) Membalas menggunakan model **${AI_MODELS.find(m => m.id === selectedModel)?.name}**. \n\nPesanmu: "${currentInput}"`
+            };
+            setMessages(prev => [...prev, aiResponse]);
+            saveMessageToFirestore(aiResponse); // Simpan balasan ke DB
+          }, 1000);
+
+        } catch (error) {
+          console.error("Error memanggil API:", error);
+        }
+      };
+
+      const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          setAttachment({
+            name: file.name,
+            type: file.type.startsWith('image/') ? 'image' : 'document'
+          });
+        }
+      };
+
+      const clearChat = () => {
+        setMessages([{ id: 1, role: 'ai', content: 'Percakapan telah direset. Ada yang bisa saya bantu?' }]);
+      };
+
+      return (
+        <div className="flex h-screen w-full bg-gray-800 text-gray-100 font-sans overflow-hidden">
+          
+          {/* Overlay Sidebar untuk Mobile */}
+          {isSidebarOpen && (
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden"
+              onClick={() => setIsSidebarOpen(false)}
+            />
+          )}
+
+          {/* Sidebar */}
+          <div className={`
+            fixed inset-y-0 left-0 z-30 w-72 bg-gray-900 transform transition-transform duration-300 ease-in-out
+            md:relative md:translate-x-0 border-r border-gray-700 flex flex-col
+            ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          `}>
+            <div className="p-4">
+              <button 
+                onClick={clearChat}
+                className="w-full flex items-center gap-2 px-4 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors border border-gray-700"
+              >
+                <IconPlus size={20} />
+                <span className="font-medium">Percakapan Baru</span>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-3 py-2 space-y-4">
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2">
+                  Riwayat {user ? '(Tersimpan di Cloud)' : ''}
+                </h3>
+                
+                {!user && (
+                  <p className="text-xs text-gray-500 px-2 italic">Silakan login untuk melihat riwayat.</p>
+                )}
+
+                {user && history.length === 0 && (
+                  <p className="text-xs text-gray-500 px-2 italic">Belum ada riwayat percakapan.</p>
+                )}
+
+                {/* Render History dari Firestore */}
+                {history.map((chat) => (
+                  <button 
+                    key={chat.id}
+                    className="w-full flex items-center gap-3 px-3 py-3 text-left hover:bg-gray-800 rounded-lg transition-colors group"
+                  >
+                    <IconMessageSquare size={18} className="text-gray-400 group-hover:text-gray-200" />
+                    <div className="truncate flex-1">
+                      <p className="text-sm font-medium text-gray-300 group-hover:text-white truncate">{chat.title || "Percakapan"}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Area Profil & Login/Logout */}
+            <div className="p-4 border-t border-gray-800">
+              {user ? (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-3 px-2">
+                    <img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full" />
+                    <div className="flex-1 truncate">
+                      <p className="text-sm font-medium">{user.displayName}</p>
+                      <p className="text-xs text-gray-400">{user.email}</p>
+                    </div>
+                  </div>
+                  <button onClick={handleLogout} className="w-full text-sm text-red-400 hover:bg-gray-800 py-2 rounded transition-colors border border-red-900/30">
+                    Keluar Akun
+                  </button>
+                </div>
+              ) : (
+                <button onClick={handleLogin} className="w-full flex items-center justify-center gap-2 bg-white text-gray-900 px-4 py-2 rounded-lg font-medium hover:bg-gray-200 transition-colors">
+                  <svg width="18" height="18" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                  Login dengan Google
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Area Chat Utama */}
+          <div className="flex-1 flex flex-col h-full relative w-full max-w-full">
+            
+            <header className="h-16 flex items-center justify-between px-4 border-b border-gray-700 bg-gray-800/90 backdrop-blur-sm z-10 shrink-0">
+              <div className="flex items-center gap-3">
+                <button 
+                  className="p-2 -ml-2 rounded-md hover:bg-gray-700 md:hidden text-gray-300"
+                  onClick={() => setIsSidebarOpen(true)}
+                >
+                  <IconMenu size={24} />
+                </button>
+                
+                {/* Dropdown Model AI Dinamis */}
+                <div className="relative">
+                  <button 
+                    onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-700 transition-colors text-lg font-semibold"
+                  >
+                    {AI_MODELS.find(m => m.id === selectedModel)?.name}
+                    <IconChevronDown size={18} className="text-gray-400" />
+                  </button>
+                  
+                  {isModelDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsModelDropdownOpen(false)} />
+                      <div className="absolute top-full left-0 mt-2 w-64 bg-gray-700 border border-gray-600 rounded-xl shadow-xl z-50 py-2 max-h-[70vh] overflow-y-auto">
+                        {/* Mengelompokkan berdasarkan keluarga AI */}
+                        {['Google', 'Groq', 'OpenAI', 'OpenRouter'].map((group) => (
+                          <div key={group}>
+                            <div className="px-4 py-1 text-xs font-bold text-gray-400 uppercase tracking-wider bg-gray-800/50 mt-1">
+                              {group}
+                            </div>
+                            {AI_MODELS.filter(m => m.group === group).map((model) => (
+                              <button
+                                key={model.id}
+                                onClick={() => {
+                                  setSelectedModel(model.id);
+                                  setIsModelDropdownOpen(false);
+                                }}
+                                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-600 transition-colors
+                                  ${selectedModel === model.id ? 'bg-gray-600 text-blue-400 font-medium' : 'text-gray-200'}
+                                `}
+                              >
+                                {model.name}
+                              </button>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+              
+              <button 
+                onClick={clearChat}
+                className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-full transition-colors hidden md:block"
+                title="Bersihkan Chat"
+              >
+                <IconTrash2 size={20} />
+              </button>
+            </header>
+
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scroll-smooth pb-32">
+              {messages.map((msg) => (
+                <div 
+                  key={msg.id} 
+                  className={`flex gap-4 max-w-3xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+                >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1
+                    ${msg.role === 'user' ? 'bg-blue-600 overflow-hidden' : 'bg-green-600'}
+                  `}>
+                    {msg.role === 'user' && user ? (
+                      <img src={user.photoURL} alt="Me" className="w-full h-full object-cover" />
+                    ) : msg.role === 'user' ? (
+                      <IconUser size={18} />
+                    ) : (
+                      <IconBot size={18} />
+                    )}
+                  </div>
+                  
+                  <div className={`flex flex-col gap-2 max-w-[80%] md:max-w-[70%]
+                    ${msg.role === 'user' ? 'items-end' : 'items-start'}
+                  `}>
+                    <div className={`px-4 py-3 rounded-2xl
+                      ${msg.role === 'user' 
+                        ? 'bg-blue-600 text-white rounded-tr-sm' 
+                        : 'bg-gray-700 text-gray-100 rounded-tl-sm'
+                      }
+                    `}>
+                      
+                      {msg.attachment && (
+                        <div className={`flex items-center gap-2 mb-2 p-2 rounded-lg text-sm
+                          ${msg.role === 'user' ? 'bg-blue-700/50' : 'bg-gray-800'}
+                        `}>
+                          <IconFileText size={16} />
+                          <span className="truncate max-w-[150px]">{msg.attachment}</span>
+                        </div>
+                      )}
+                      
+                      <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-gray-800 via-gray-800 to-transparent">
+              <div className="max-w-3xl mx-auto relative">
+                
+                {attachment && (
+                  <div className="absolute -top-12 left-0 flex items-center gap-2 bg-gray-700 px-3 py-1.5 rounded-lg border border-gray-600 shadow-lg">
+                    {attachment.type === 'image' ? <IconImage size={16} className="text-blue-400" /> : <IconFileText size={16} className="text-blue-400" />}
+                    <span className="text-sm text-gray-200 truncate max-w-[150px]">{attachment.name}</span>
+                    <button 
+                      onClick={() => setAttachment(null)}
+                      className="ml-2 p-1 hover:bg-gray-600 rounded-full text-gray-400 hover:text-red-400"
+                    >
+                      <IconX size={14} />
+                    </button>
+                  </div>
+                )}
+
+                <form 
+                  onSubmit={handleSendMessage}
+                  className="flex items-end gap-2 bg-gray-700 border border-gray-600 rounded-2xl p-2 shadow-xl focus-within:ring-1 focus-within:ring-blue-500 transition-shadow"
+                >
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleFileChange} 
+                    className="hidden" 
+                    accept="image/*,.pdf,.doc,.docx,.txt"
+                  />
+                  
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-3 text-gray-400 hover:text-gray-200 hover:bg-gray-600 rounded-xl transition-colors shrink-0"
+                  >
+                    <IconPlus size={24} />
+                  </button>
+                  
+                  <textarea
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage(e);
+                      }
+                    }}
+                    placeholder={user ? "Kirim pesan ke AI..." : "Login untuk mulai chat..."}
+                    disabled={!user} // Disable input jika belum login
+                    className="flex-1 max-h-32 min-h-[44px] bg-transparent border-none text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-0 resize-none py-3 px-2 disabled:opacity-50"
+                    rows="1"
+                  />
+                  
+                  <button
+                    type="submit"
+                    disabled={(!inputValue.trim() && !attachment) || !user}
+                    className={`p-3 rounded-xl transition-all shrink-0
+                      ${(inputValue.trim() || attachment) && user
+                        ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg' 
+                        : 'bg-gray-600/50 text-gray-400 cursor-not-allowed'
+                      }
+                    `}
+                  >
+                    <IconSend size={20} className={`${(inputValue.trim() || attachment) ? 'translate-x-0.5' : ''}`} />
+                  </button>
+                </form>
+                <p className="text-center text-xs text-gray-500 mt-2">
+                  Menggunakan Vercel Backend untuk keamanan API. Data disimpan di Firebase.
+                </p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
