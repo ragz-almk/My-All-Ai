@@ -18,9 +18,21 @@ export default async function handler(req, res) {
     // ----------------------------------------------------------------------
     // KELUARGA GOOGLE (Gemini & Nano Banana)
     // ----------------------------------------------------------------------
-    if (['gemini-3.1-pro-preview', 'gemini-3.1-flash-lite-preview', 'gemini-3.1-flash-image-preview'].includes(model)) {
-      const apiKey = process.env.GOOGLE_API_KEY; // Diambil dari Vercel Env
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    if (['gemini-3.1-pro', 'gemini-3.1-flash', 'gemini-3.1-lite', 'nano-banana-2'].includes(model)) {
+      const apiKey = process.env.GOOGLE_API_KEY;
+      
+      // 1. MAPPING NAMA MODEL (Berdasarkan Screenshot UI API-mu)
+      const googleModelMap = {
+        'gemini-3.1-pro': 'gemini-3.1-pro-preview',
+        'gemini-3.1-flash': 'gemini-3.1-flash-preview', // Asumsi nama untuk versi Flash standar
+        'gemini-3.1-lite': 'gemini-3.1-flash-lite-preview',
+        'nano-banana-2': 'gemini-3.1-flash-image-preview'
+      };
+
+      // Mengambil ID model yang benar, atau fallback ke yang dipilih user jika tidak ada di map
+      const actualGoogleModel = googleModelMap[model] || model; 
+      
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${actualGoogleModel}:generateContent?key=${apiKey}`;
       
       const response = await fetch(url, {
         method: 'POST',
@@ -31,7 +43,13 @@ export default async function handler(req, res) {
       });
       
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error?.message || 'Gagal memanggil Google API');
+      
+      // 2. LOG ERROR DETAIL
+      // Jika error, cetak pesan asli dari Google ke terminal Vercel
+      if (!response.ok) {
+        console.error("DETAIL ERROR GOOGLE:", JSON.stringify(data, null, 2));
+        throw new Error(`Google menolak permintaan: ${data.error?.message || 'Error 400 Bad Request'}`);
+      }
       
       aiResponseText = data.candidates[0].content.parts[0].text;
     }
