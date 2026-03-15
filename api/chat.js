@@ -80,9 +80,7 @@ export default async function handler(req, res) {
     // ----------------------------------------------------------------------
     // KELUARGA GROQ
     // ----------------------------------------------------------------------
-    else if (['openai/gpt-oss-120b', 'whisper-stt'].includes(model)) {
-      // CATATAN PENDIDIKAN: Whisper (STT) biasanya membutuhkan input file audio.
-      // Jika user mengirim teks ke Whisper, API Groq mungkin menolaknya.
+    else if (['llama-4', 'whisper-stt'].includes(model)) {
       if (model === 'whisper-stt') {
         return res.status(400).json({ 
           error: 'Whisper (STT) membutuhkan file audio, bukan teks. Fitur ini memerlukan penanganan khusus untuk file.' 
@@ -90,6 +88,14 @@ export default async function handler(req, res) {
       }
 
       const apiKey = process.env.GROQ_API_KEY;
+      
+      // 1. MAPPING NAMA MODEL GROQ
+      const groqModelMap = {
+        'llama-4': 'meta-llama/llama-4-scout-17b-16e-instruct'
+      };
+      const actualGroqModel = groqModelMap[model] || model;
+
+      // 2. FETCH KE API GROQ
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -97,13 +103,22 @@ export default async function handler(req, res) {
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: model,
-          messages: [{ role: 'user', content: message }]
+          model: actualGroqModel, // Menggunakan ID model yang benar
+          messages: [{ role: 'user', content: message }],
+          temperature: 1,
+          max_completion_tokens: 1024,
+          top_p: 1,
+          stream: false // Diubah ke false agar sesuai dengan UI kita
         })
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error?.message || 'Gagal memanggil Groq API');
+      
+      // 3. LOG ERROR DETAIL
+      if (!response.ok) {
+        console.error("DETAIL ERROR GROQ:", JSON.stringify(data, null, 2));
+        throw new Error(`Groq menolak permintaan: ${data.error?.message || 'Error API Groq'}`);
+      }
       
       aiResponseText = data.choices[0].message.content;
     }
