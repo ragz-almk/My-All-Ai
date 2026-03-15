@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     // ----------------------------------------------------------------------
     // KELUARGA GOOGLE (Gemini & Nano Banana)
     // ----------------------------------------------------------------------
-    if (['gemini-3.1-pro', 'gemini-3.1-flash', 'gemini-3.1-lite', 'nano-banana-2'].includes(model)) {
+    if (['gemini-3.1-pro-preview', 'gemini-3.1-flash-lite-preview', 'gemini-3.1-flash-image-preview'].includes(model)) {
       const apiKey = process.env.GOOGLE_API_KEY; // Diambil dari Vercel Env
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       
