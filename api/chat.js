@@ -80,7 +80,7 @@ export default async function handler(req, res) {
     // ----------------------------------------------------------------------
     // KELUARGA GROQ
     // ----------------------------------------------------------------------
-    else if (['llama-4', 'whisper-stt'].includes(model)) {
+    else if (['openai/gpt-oss-120b', 'whisper-stt'].includes(model)) {
       // CATATAN PENDIDIKAN: Whisper (STT) biasanya membutuhkan input file audio.
       // Jika user mengirim teks ke Whisper, API Groq mungkin menolaknya.
       if (model === 'whisper-stt') {
