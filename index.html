@@ -159,6 +159,7 @@
       };
 
       // --- Fungsi Kirim Pesan (Integrasi Vercel) ---
+      // --- Fungsi Kirim Pesan (Terhubung ke Vercel API) ---
       const handleSendMessage = async (e) => {
         e.preventDefault();
         if (!inputValue.trim() && !attachment) return;
@@ -171,41 +172,53 @@
           attachment: attachment ? attachment.name : null
         };
         setMessages(prev => [...prev, newUserMsg]);
-        saveMessageToFirestore(newUserMsg); // Simpan ke DB
+        saveMessageToFirestore(newUserMsg); // Simpan ke Database
 
         const currentInput = inputValue; // Simpan teks untuk dikirim ke API
+        const currentModel = selectedModel; // Simpan model yang sedang dipilih
         setInputValue('');
         setAttachment(null);
 
-        // 2. Tembak API Vercel
+        // (Opsional) Tambahkan indikator "AI sedang mengetik..." di sini jika mau
+        // Untuk sekarang, kita langsung tembak API.
+
+        // 2. Tembak API Vercel sungguhan
         try {
-          // Placeholder API Vercel kamu. Di Vercel nanti, kamu buat file /api/chat.js
-          /*
           const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              model: selectedModel, // Model yang dipilih di UI (misal: 'gpt-5.1')
-              message: currentInput,
-              // history: messages // Bisa dikirim juga jika API butuh konteks
+              model: currentModel, 
+              message: currentInput
             })
           });
+          
           const data = await response.json();
-          */
 
-          // Karena ini belum terkoneksi ke Vercel betulan, kita simulasikan:
-          setTimeout(() => {
-            const aiResponse = {
-              id: (Date.now() + 1).toString(),
-              role: 'ai',
-              content: `(Simulasi Vercel) Membalas menggunakan model **${AI_MODELS.find(m => m.id === selectedModel)?.name}**. \n\nPesanmu: "${currentInput}"`
-            };
-            setMessages(prev => [...prev, aiResponse]);
-            saveMessageToFirestore(aiResponse); // Simpan balasan ke DB
-          }, 1000);
+          // Cek jika server mengembalikan error (misal: API key salah/habis)
+          if (!response.ok) {
+            throw new Error(data.error || 'Terjadi kesalahan pada server AI.');
+          }
+
+          // 3. Tampilkan balasan AI ke UI
+          const aiResponse = {
+            id: (Date.now() + 1).toString(),
+            role: 'ai',
+            content: data.reply // Mengambil field 'reply' dari respons api/chat.js
+          };
+          
+          setMessages(prev => [...prev, aiResponse]);
+          saveMessageToFirestore(aiResponse); // Simpan balasan AI ke DB
 
         } catch (error) {
           console.error("Error memanggil API:", error);
+          
+          // Tampilkan pesan error ke layar chat agar kamu tahu ada yang salah
+          setMessages(prev => [...prev, {
+            id: (Date.now() + 1).toString(),
+            role: 'ai',
+            content: `**Error:** Maaf, gagal menghubungi AI. (${error.message})`
+          }]);
         }
       };
 
