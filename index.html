@@ -132,57 +132,69 @@
 
       // --- Fungsi Firestore ---
       const loadHistory = (uid) => {
-        // Mendengarkan perubahan data di Firestore secara real-time
-        db.collection('users').doc(uid).collection('chats')
-          .orderBy('createdAt', 'desc')
+        // Kita satukan nama koleksinya menjadi 'messages'
+        db.collection('users').doc(uid).collection('messages')
+          .orderBy('createdAt', 'asc') // Urutkan dari terlama ke terbaru
           .onSnapshot((snapshot) => {
-            const historyData = snapshot.docs.map(doc => ({
+            const allMessages = snapshot.docs.map(doc => ({
               id: doc.id,
               ...doc.data()
             }));
-            setHistory(historyData);
+
+            // Tampilkan riwayat ke layar utama jika ada
+            if (allMessages.length > 0) {
+              setMessages(allMessages);
+            }
+
+            // Untuk di Sidebar: Kita ambil pesan dari user saja sebagai daftar riwayat
+            const userPrompts = allMessages.filter(msg => msg.role === 'user');
+            setHistory(userPrompts);
+          }, (error) => {
+            console.error("Gagal membaca riwayat dari Firebase:", error);
           });
       };
 
       const saveMessageToFirestore = async (messageObj) => {
-        if (!user) return; // Jangan simpan jika belum login
+        if (!user) return; // Wajib login
         try {
-          // Contoh struktur: Menyimpan setiap pesan dalam satu dokumen 'chat' utama
-          // Untuk produksi, kamu mungkin ingin membuat sistem "Session/Room ID"
-          await db.collection('users').doc(user.uid).collection('messages').add({
+          // Kita gunakan doc(messageObj.id).set() agar ID di lokal dan database sama
+          await db.collection('users').doc(user.uid).collection('messages').doc(messageObj.id).set({
             ...messageObj,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
           });
+          console.log("Berhasil menyimpan pesan ke Firebase!");
         } catch (error) {
           console.error("Gagal menyimpan pesan:", error);
         }
       };
 
-      // --- Fungsi Kirim Pesan (Integrasi Vercel) ---
-      // --- Fungsi Kirim Pesan (Terhubung ke Vercel API) ---
+      // --- Fungsi Kirim Pesan (Terhubung ke Vercel & Firebase) ---
       const handleSendMessage = async (e) => {
         e.preventDefault();
+        
+        // Cegah pengiriman jika input kosong dan tidak ada lampiran
         if (!inputValue.trim() && !attachment) return;
 
-        // 1. Tambahkan pesan User ke UI
-        const newUserMsg = {
-          id: Date.now().toString(),
-          role: 'user',
-          content: inputValue,
-          attachment: attachment ? attachment.name : null
-        };
-        setMessages(prev => [...prev, newUserMsg]);
-        saveMessageToFirestore(newUserMsg); // Simpan ke Database
-
-        const currentInput = inputValue; // Simpan teks untuk dikirim ke API
-        const currentModel = selectedModel; // Simpan model yang sedang dipilih
+        // Simpan nilai ke dalam variabel lokal sebelum form dikosongkan
+        const currentInput = inputValue; 
+        const currentModel = selectedModel; 
+        
+        // Kosongkan form input di UI
         setInputValue('');
         setAttachment(null);
 
-        // (Opsional) Tambahkan indikator "AI sedang mengetik..." di sini jika mau
-        // Untuk sekarang, kita langsung tembak API.
+        // 1. Buat objek pesan User dan simpan ke Firestore
+        const newUserMsg = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: currentInput,
+          attachment: attachment ? attachment.name : null
+        };
+        
+        // Simpan ke database. UI akan otomatis muncul berkat onSnapshot!
+        await saveMessageToFirestore(newUserMsg); 
 
-        // 2. Tembak API Vercel sungguhan
+        // 2. Minta balasan dari AI melalui backend Vercel kita
         try {
           const response = await fetch('/api/chat', {
             method: 'POST',
@@ -195,30 +207,31 @@
           
           const data = await response.json();
 
-          // Cek jika server mengembalikan error (misal: API key salah/habis)
+          // Cek jika server mengembalikan error
           if (!response.ok) {
             throw new Error(data.error || 'Terjadi kesalahan pada server AI.');
           }
 
-          // 3. Tampilkan balasan AI ke UI
+          // 3. Buat objek balasan AI dan simpan ke Firestore
           const aiResponse = {
-            id: (Date.now() + 1).toString(),
+            id: (Date.now() + 1).toString(), // Tambah 1 milidetik agar ID berbeda
             role: 'ai',
-            content: data.reply // Mengambil field 'reply' dari respons api/chat.js
+            content: data.reply
           };
           
-          setMessages(prev => [...prev, aiResponse]);
-          saveMessageToFirestore(aiResponse); // Simpan balasan AI ke DB
+          await saveMessageToFirestore(aiResponse);
 
         } catch (error) {
           console.error("Error memanggil API:", error);
           
-          // Tampilkan pesan error ke layar chat agar kamu tahu ada yang salah
-          setMessages(prev => [...prev, {
+          // Jika terjadi error, kita simpan pesan error tersebut ke database 
+          // sebagai balasan AI agar kamu bisa melihatnya di layar
+          const errorMsg = {
             id: (Date.now() + 1).toString(),
             role: 'ai',
             content: `**Error:** Maaf, gagal menghubungi AI. (${error.message})`
-          }]);
+          };
+          await saveMessageToFirestore(errorMsg);
         }
       };
 
